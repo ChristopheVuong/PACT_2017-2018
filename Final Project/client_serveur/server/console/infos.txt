@@ -1,0 +1,1 @@
+Contient de quoi gérer une custom console Swing (pour pouvoir utiliser l'app avec un runnable jar sans ligne de commande) pour remplacer les system.in et system.out classiques

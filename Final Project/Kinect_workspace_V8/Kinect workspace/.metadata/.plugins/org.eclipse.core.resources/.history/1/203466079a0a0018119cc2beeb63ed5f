@@ -1,0 +1,185 @@
+package utils.listeners;
+
+import com.jogamp.opengl.GL;
+import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GLAutoDrawable;
+import com.jogamp.opengl.GLEventListener;
+import com.jogamp.opengl.glu.GLU;
+import com.jogamp.opengl.glu.GLUquadric;
+
+import edu.ufl.digitalworlds.j4k.Skeleton;
+import utils.Constants;
+import utils.kinect.ShowSkeletonInterface;
+
+public abstract class EventListenerAbstract implements GLEventListener {
+
+	private final GLU glu;
+
+	public EventListenerAbstract(final GLU glu) {
+		this.glu = glu;
+	}
+
+	@Override
+	public final void init(final GLAutoDrawable drawable) {}
+
+	@Override
+	public final void dispose(final GLAutoDrawable drawable) {}
+
+	/**
+	 * Permet de mettre correctement la toile à jour en cas d'agrandissement ou de rétrécissement.
+	 */
+	@Override
+	public final void reshape(final GLAutoDrawable drawable, final int x, final int y, final int width, int height) {
+		final GL2 gl = drawable.getGL().getGL2();
+		gl.glEnable(GL.GL_DEPTH_TEST);
+		if(height <= 0) {
+			height = 1;
+		}
+		final float h = (float)width / (float)height;
+		gl.glViewport(0, 0, width, height);
+		gl.glMatrixMode(GL2.GL_PROJECTION);
+		gl.glLoadIdentity();
+		glu.gluPerspective(60.0f, h, 1.0f, 31.0f);
+		gl.glMatrixMode(GL2.GL_MODELVIEW);
+		gl.glLoadIdentity();
+	}
+	
+	/**
+	 * Dessine le segment entre 2 points du squelette sur la toile OpenGL. (avec zoomFactor)
+	 */
+	private final void drawLine(final int point1, final int point2, final GL2 gl, final float[] positions, final float zoomFactor) {
+		gl.glBegin(GL2.GL_LINES);
+		gl.glVertex3f(zoomFactor*Constants.initialZoomFactor*positions[3*point1], zoomFactor*Constants.initialZoomFactor*positions[3*point1+1], -zoomFactor*Constants.initialZoomFactor*positions[3*point1+2]-Constants.initialTranslationFactor);
+		gl.glVertex3f(zoomFactor*Constants.initialZoomFactor*positions[3*point2], zoomFactor*Constants.initialZoomFactor*positions[3*point2+1], -zoomFactor*Constants.initialZoomFactor*positions[3*point2+2]-Constants.initialTranslationFactor);
+		gl.glEnd();
+	}
+
+	/**
+	 * Dessine une sphere de centre center et dont point appartient à la sphère. (avec zoomFactor)
+	 */
+	private final void drawSphere(final int center, final int point, final GL2 gl, final float[] positions, final float zoomFactor) {
+		gl.glPushMatrix();
+		gl.glTranslatef(zoomFactor*Constants.initialZoomFactor*positions[3*center], zoomFactor*Constants.initialZoomFactor*positions[3*center+1], -zoomFactor*Constants.initialZoomFactor*positions[3*center+2]-Constants.initialTranslationFactor);
+		final GLUquadric quadObject = glu.gluNewQuadric();
+		glu.gluQuadricDrawStyle(quadObject, GLU.GLU_FILL);
+		glu.gluQuadricNormals(quadObject, GLU.GLU_SMOOTH);
+		glu.gluSphere(quadObject, zoomFactor*Constants.initialZoomFactor*norme3D(center,point,positions)*2/3, 16, 16);
+		gl.glTranslatef(-zoomFactor*Constants.initialZoomFactor*positions[3*center], -zoomFactor*Constants.initialZoomFactor*positions[3*center+1], zoomFactor*Constants.initialZoomFactor*positions[3*center+2]+Constants.initialTranslationFactor);
+		gl.glPopMatrix();
+	}
+
+	/**
+	 * Dessine un cylindre dont top et base sont les milieux des 2 bases, de rayon radius. (avec zoomFactor)
+	 */
+	private final void drawCylinder(final int base, final int top, final GL2 gl, final float[] positions, final float radius, final float zoomFactor) {
+		final double radiusScaled = zoomFactor*Constants.initialZoomFactor*radius;
+		final double height = zoomFactor*Constants.initialZoomFactor*norme3D(base,top,positions);
+		final double teta = Math.atan2(positions[3*top+1] - positions[3*base+1], positions[3*top] - positions[3*base]);
+		final double phi = Math.acos((positions[3*top+2] - positions[3*base+2])/(Math.sqrt((positions[3*top] - positions[3*base])*(positions[3*top] - positions[3*base]) + (positions[3*top+1] - positions[3*base+1])*(positions[3*top+1] - positions[3*base+1]) + (positions[3*top+2] - positions[3*base+2])*(positions[3*top+2] - positions[3*base+2]))));
+		//final double phi = Math.atan2(Math.sqrt((positions[3*top] - positions[3*base])*(positions[3*top] - positions[3*base]) + (positions[3*top+1] - positions[3*base+1])*(positions[3*top+1] - positions[3*base+1])), positions[3*top+2] - positions[3*base+2]);
+		final double phiDeg = phi*180/Math.PI;
+		final int slices = 16;
+		final int stacks = 1;
+
+		final double[] x = new double[slices];
+		final double[] y = new double[slices];
+		final double angleDelta = 2 * Math.PI / slices;
+		double angle = 0;
+		for(int i = 0; i < slices; i++) {
+			angle = i * angleDelta;
+			x[i] = radiusScaled*Math.cos(angle);
+			y[i] = radiusScaled*Math.sin(angle);
+		}
+		
+		gl.glPushMatrix();
+		gl.glTranslatef(zoomFactor*Constants.initialZoomFactor*positions[3*base], zoomFactor*Constants.initialZoomFactor*positions[3*base+1], -zoomFactor*Constants.initialZoomFactor*positions[3*base+2]-Constants.initialTranslationFactor);
+		gl.glRotated(-phiDeg, -Math.sin(teta), Math.cos(teta), 0);
+		gl.glRotated(-180, 1, 0, 0);
+		
+		gl.glBegin(GL2.GL_TRIANGLE_FAN);
+		gl.glVertex3d(0,0,0);
+		for(int i = 0; i < slices; i++) {
+			gl.glVertex3d(x[i], y[i], 0);
+		}
+		gl.glVertex3d(x[0], y[0], 0);
+		gl.glEnd();
+		
+		gl.glBegin(GL2.GL_TRIANGLE_FAN);
+		gl.glVertex3d(0,0,height);
+		for(int i = 0; i < slices; i++) {
+			gl.glVertex3d(x[i], y[i], height);
+		}
+		gl.glVertex3d(x[0], y[0], height);
+		gl.glEnd();
+
+		final GLUquadric quadObject = glu.gluNewQuadric();
+		glu.gluQuadricDrawStyle(quadObject, GLU.GLU_FILL);
+		glu.gluQuadricNormals(quadObject, GLU.GLU_SMOOTH);
+		glu.gluCylinder(quadObject, radiusScaled, radiusScaled, height, slices, stacks);
+		
+		gl.glRotated(180, 1, 0, 0);
+		gl.glRotated(phiDeg, -Math.sin(teta), Math.cos(teta), 0);
+		gl.glTranslatef(-zoomFactor*Constants.initialZoomFactor*positions[3*base], -zoomFactor*Constants.initialZoomFactor*positions[3*base+1], zoomFactor*Constants.initialZoomFactor*positions[3*base+2]+Constants.initialTranslationFactor);
+		gl.glPopMatrix();
+	}
+
+	/**
+	 * Met à jour le squelette affiché.
+	 * <p>
+	 * Effectue les éventuels changements de vue du squelette.
+	 * <p>
+	 * Trace tous les segments liants les points du squelette.
+	 */
+	public final void displayConstruct(final GLAutoDrawable drawable, final ShowSkeletonInterface showSkeletonInterface) {
+		final GL2 gl = drawable.getGL().getGL2();
+		final float[] positions = showSkeletonInterface.getKinectInterface().getPositionsAndStatus().getPositions();
+		final float zoomFactor = showSkeletonInterface.getKinectInterface().getZoomFactor();
+		gl.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
+		gl.glTranslatef(zoomFactor*Constants.initialZoomFactor*positions[3*Skeleton.SPINE_BASE], zoomFactor*Constants.initialZoomFactor*positions[3*Skeleton.SPINE_BASE+1], -zoomFactor*Constants.initialZoomFactor*positions[3*Skeleton.SPINE_BASE+2]-Constants.initialTranslationFactor);
+		gl.glRotatef(showSkeletonInterface.getCurrentXRot(), 1, 0, 0);
+		gl.glRotatef(showSkeletonInterface.getCurrentYRot(), 0, 1, 0);
+		gl.glRotatef(showSkeletonInterface.getCurrentZRot(), 0, 0, 1);
+		gl.glTranslatef(-zoomFactor*Constants.initialZoomFactor*positions[3*Skeleton.SPINE_BASE], -zoomFactor*Constants.initialZoomFactor*positions[3*Skeleton.SPINE_BASE+1], zoomFactor*Constants.initialZoomFactor*positions[3*Skeleton.SPINE_BASE+2]+Constants.initialTranslationFactor);
+		showSkeletonInterface.setCurrentXRot(0.0f);
+		showSkeletonInterface.setCurrentYRot(0.0f);
+		showSkeletonInterface.setCurrentZRot(0.0f);
+
+		int point1;
+		int point2;
+
+		/*for(final int[] limb : Constants.limbs) {
+			point1 = limb[0];
+			point2 = limb[1];
+			drawLine(point1, point2 , gl, positions, zoomFactor);
+		}*/
+
+		for(final int[] limb : Constants.limbsSphere) {
+			point1 = limb[0];
+			point2 = limb[1];
+			drawSphere(point1, point2 , gl, positions, zoomFactor);
+		}
+
+		for(final int[] limb : Constants.limbsCylinder0) {
+			point1 = limb[0];
+			point2 = limb[1];
+			drawCylinder(point1, point2 , gl, positions, 0.1f, zoomFactor);
+		}
+
+		for(final int[] limb : Constants.limbsCylinder1) {
+			point1 = limb[0];
+			point2 = limb[1];
+			drawCylinder(point1, point2 , gl, positions, 0.05f, zoomFactor);
+		}
+
+		for(final int[] limb : Constants.limbsCylinder2) {
+			point1 = limb[0];
+			point2 = limb[1];
+			drawCylinder(point1, point2 , gl, positions, 0.02f, zoomFactor);
+		}
+	}
+
+	private static final double norme3D(final int point1, final int point2, final float[] positions) {
+		return Math.sqrt((positions[3*point2] - positions[3*point1])*(positions[3*point2] - positions[3*point1]) + (positions[3*point2+1] - positions[3*point1+1])*(positions[3*point2+1] - positions[3*point1+1]) + (positions[3*point2+2] - positions[3*point1+2])*(positions[3*point2+2] - positions[3*point1+2]));
+	}
+}

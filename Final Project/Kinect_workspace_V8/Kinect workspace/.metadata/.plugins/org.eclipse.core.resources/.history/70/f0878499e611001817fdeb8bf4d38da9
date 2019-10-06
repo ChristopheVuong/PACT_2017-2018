@@ -1,0 +1,15 @@
+package utils.kinect;
+
+import com.jogamp.opengl.awt.GLCanvas;
+import com.jogamp.opengl.glu.GLU;
+
+import current.KinectInterface;
+
+/**
+ * Contient les méthodes à implémenter par ShowSkeleton pour être utilisé pour montrer le squelette
+ */
+public interface ShowSkeletonInterface {
+	public KinectInterface getKinectInterface();
+	public ViewerInterface getViewer();
+	public ScrollbarSized getScrollbar();
+}

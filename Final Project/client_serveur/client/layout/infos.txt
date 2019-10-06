@@ -1,0 +1,1 @@
+Contient le layout de l'app, avec un champ pour entrer les données à envoyer, de quoi afficher les données reçues, et de quoi valider l'envoie de ce qu'il y a dans le champ

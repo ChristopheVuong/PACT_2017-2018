@@ -1,0 +1,429 @@
+package chat;
+
+import java.awt.color.ColorSpace;
+import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
+import java.awt.image.ComponentColorModel;
+import java.awt.image.DataBuffer;
+import java.awt.image.DataBufferByte;
+import java.awt.image.Raster;
+import java.awt.image.WritableRaster;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.io.PrintWriter;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+
+import javax.imageio.ImageIO;
+
+import utils.Constants;
+import utils.FileComboItem;
+import utils.Handlers;
+import utils.Move;
+import utils.UserErrorHandler;
+import utils.ValidationMethods;
+
+/**
+ * Permet de lancer le côté serveur de la communication
+ */
+public final class Server {
+
+	private volatile Move move;
+	private ServerSocket serverSocket;
+	private PrintWriter pw;
+	private volatile boolean threadActive;
+	private volatile boolean streamActive;
+
+	/**
+	 * Initialise le côté serveur de la communication
+	 */
+	public Server() {
+		threadActive = true;
+		streamActive = true;
+
+		try {
+			serverSocket = new ServerSocket(12291); //Port non attribué par IANA (Internet Assigned Numbers Authority)
+			start();
+		} catch(final Exception e) {
+			new UserErrorHandler("An error occurred while launching the connection on the server side");
+		}
+	}
+	
+	public Move getMove() {
+		return move;
+	}
+
+	/**
+	 * Permet d'obtenir le socket du côté serveur de la communication
+	 */
+	public ServerSocket getServeurSocket() {
+		return serverSocket;
+	}
+
+	/**
+	 * Permet de terminer les threads lancer du côté serveur de la communication, et de lancer la fermuture des threads du côté client, ainsi que la fermeture des sockets
+	 */
+	private synchronized void endThreads() {
+		if(!streamActive) {
+			sendMessageToClient("end_stream");
+			threadActive = false;
+			close();
+			Main.console.println("Sequence end");
+		}
+	}
+
+	/**
+	 * Permet de terminer les streams du côté serveur, puis de terminer les threads lancer du côté serveur de la communication, et de lancer la fermuture des threads du côté client, ainsi que la fermeture des sockets
+	 */
+	public synchronized void endStreams() {
+		if(streamActive) {
+			streamActive = false;
+			endThreads();
+		}
+	}
+
+	/**
+	 * Permet d'envoyer un message à tous les clients
+	 */
+	private synchronized void sendMessageToClient(final String m) {
+		if(pw != null) {
+			pw.println(m);
+		}
+	}
+
+	/**
+	 * Lance le serveur
+	 */
+	private void start() {
+		new Thread(new WaintingForClientHandler()).start();
+	}
+
+	/**
+	 * Cloture le serveur
+	 */
+	private synchronized void close() {
+		if(!threadActive) {
+			try {
+				serverSocket.close();
+				sendMessageToClient("close_stream");
+				Main.console.getConsoleStream().close();
+			} catch(final IOException e) {
+				new UserErrorHandler("An error occurred while closing the server side");
+			}
+		}
+	}
+
+	/**
+	 * Permet de mettre en place la communication avec des nouveaux clients
+	 */
+	private final class WaintingForClientHandler implements Runnable {
+
+		@Override
+		public void run() {
+			try {
+				Main.console.println("Waiting for a connexion");
+				Socket socket;
+				socket = serverSocket.accept();
+				Main.console.println("Connection established on the server side");
+				new Thread(new ServerToClientHandler(socket)).start();
+				new Thread(new ClientToServerHandler(socket)).start();
+			} catch(final IOException e) {}
+		}
+	}
+
+	/**
+	 * Pour chaque client, permet la mise en place de la communication du serveur au client
+	 */
+	private final class ServerToClientHandler implements Runnable {
+
+		private final Socket socket;
+		private final String host;
+
+		public ServerToClientHandler(final Socket socket) {
+			this.socket = socket;
+			host = socket.getInetAddress().getHostAddress();
+		}
+
+		@Override
+		public void run() {
+			OutputStream out = null;
+			OutputStreamWriter osw = null;
+
+			try {
+				out = socket.getOutputStream();
+				osw = new OutputStreamWriter(out,StandardCharsets.UTF_8);
+				pw = new PrintWriter(osw,true);
+				sendMessageToClient(host + " online");
+				while(streamActive) {}
+				sendMessageToClient("end_stream");
+			} catch(final IOException e) {
+				new UserErrorHandler("An error occurred on the server side in the communication from server to client");
+			} finally {
+				if(pw != null) {
+					pw.close();
+				} else {
+					if(osw != null) {
+						try {
+							osw.close();
+						} catch(final IOException e) {}
+					} else {
+						if(out != null) {
+							try {
+								out.close();
+							} catch(final IOException e) {}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Pour chaque client, permet la mise en place de la communication du client au serveur
+	 */
+	private final class ClientToServerHandler implements Runnable {
+
+		private final Socket socket;
+
+		public ClientToServerHandler(final Socket socket){
+			this.socket = socket;
+		}
+		
+		@Override
+		public void run() {
+			boolean isReadingIndex = false;
+			boolean indexWasRead = false;
+			boolean indexStepValid = false;
+			List<FileComboItem> indexList = null;
+			List<FileComboItem> indexListClient = null;
+			List<FileComboItem> indexEdit = null;
+			int indexCount = 0;
+			
+			boolean isReadingMove = false;
+			StringBuilder moveString = null;
+			int indexMove = 0;
+			
+			InputStream in = null;
+			InputStreamReader isr = null;
+			BufferedReader br = null;
+			
+			try {
+				in = socket.getInputStream();
+				isr = new InputStreamReader(in,StandardCharsets.UTF_8);
+				br = new BufferedReader(isr);
+				
+				String message = null;
+				
+				while(threadActive) {
+					if((message = br.readLine()) != null) {
+						if(message.equals("end_stream")) {
+							br.close();
+							endStreams();
+						} else {
+							if(ValidationMethods.isMove(message) && indexWasRead && !indexStepValid) {
+								final Move move = getMoveById(Integer.parseInt(message.split("=>",2)[2]));
+								if(move.isNotValid()) {
+									sendMessageToClient("fatalError=>Le mouvement n'est pas reconnu");
+								} else {
+									setCurrentMove(move);
+								}
+							} else {
+								if(!indexStepValid) {
+									if(ValidationMethods.isIndexInitializer(message) && !indexWasRead && !isReadingIndex) {
+										isReadingIndex = true;
+										indexList = Handlers.makeIndex();
+										indexListClient = new ArrayList<FileComboItem>();
+									} else {
+										if(isReadingIndex) {
+											if(ValidationMethods.isIndexEnd(message)) {
+												if(indexListClient == null || indexListClient.isEmpty()) {
+													sendMessageToClient("fatalError=>Le fichier d'index des mouvements est corrompu ou il n'y a pas d'index");
+												} else {
+													if(ValidationMethods.isIndexValid(indexListClient)) {
+														if(indexList != null) {
+															final List<Integer> compareIndex = Handlers.compareIndex(indexList,indexListClient);
+															indexEdit = new ArrayList<FileComboItem>();
+															if(!compareIndex.isEmpty()) {
+																final int len = compareIndex.size();
+																sendMessageToClient("file=>indexInit");
+																for(int i = 0; i<len; i++) {
+																	sendMessageToClient(compareIndex.get(i).toString());
+																	indexEdit.add(indexListClient.get(compareIndex.get(i)));
+																}
+																sendMessageToClient("file=>indexEnd");
+																indexStepValid = true;
+															} else {
+																sendMessageToClient("init=>valid");
+															}
+														} else {
+															final int len = indexListClient.size();
+															indexEdit = new ArrayList<FileComboItem>();
+															sendMessageToClient("file=>indexInit");
+															for(int i = 0; i<len; i++) {
+																sendMessageToClient(Integer.toString(i));
+																indexEdit.add(indexListClient.get(i));
+															}
+															sendMessageToClient("file=>indexEnd");
+															indexStepValid = true;
+														}
+													} else {
+														sendMessageToClient("fatalError=>Le fichier d'index des mouvements est corrompu");
+													}
+												}
+												isReadingIndex = false;
+												indexWasRead = true;
+												indexList = null;
+												indexListClient = null;
+											} else {
+												if(ValidationMethods.isValidFile(message)) {
+													final String[] indexFile = message.split(" => ",2);
+													if(Integer.parseInt(indexFile[0]) == indexCount) {
+														indexListClient.add(new FileComboItem(indexFile[1].split("&",2)));
+														indexCount++;
+													} else {
+														indexListClient = null;
+														sendMessageToClient("fatalError=>Le fichier d'index des mouvements est corrompu");
+													}
+												}
+											}
+										}
+									}
+								} else {
+									if(ValidationMethods.isMoveInitializer(message) && !isReadingMove) {
+										isReadingMove = true;
+									} else {
+										if(isReadingMove) {
+											if(ValidationMethods.isMoveEnd(message)) {
+												final File fileMove = new File(Constants.BaseMove + indexEdit.get(indexMove++).getFileName());
+
+												FileWriter fw = null;
+												try {
+													fw = new FileWriter(fileMove);
+													fw.write(moveString.toString());
+												} catch(final IOException e) {
+													sendMessageToClient("fatalError=>Une erreur est survenue lors de la mise à jour de la librairie des mouvements");
+												} finally {
+													if(fw != null) {
+														try {
+															fw.close();
+														} catch(final IOException e) {
+															sendMessageToClient("fatalError=>Une erreur est survenue lors de la mise à jour de la librairie des mouvements");
+														}
+													}
+												}
+												moveString = null;
+												if(indexMove == indexEdit.size()) {
+													sendMessageToClient("init=>valid");
+													indexStepValid = false;
+												}
+												isReadingMove = false;
+											} else {
+												if(moveString == null) {
+													moveString = new StringBuilder();
+												}
+												moveString.append(message + System.lineSeparator());
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			} catch(final IOException e) {
+				new UserErrorHandler("An error occurred on the server side in the communication from client to server");
+			} finally {
+				if(br != null) {
+					try {
+						br.close();
+					} catch(final IOException e) {}
+				} else {
+					if(isr != null) {
+						try {
+							isr.close();
+						} catch(final IOException e) {}
+					} else {
+						if(in != null) {
+							try {
+								in.close();
+							} catch(final IOException e) {}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	public Move getCurrentMove() {
+		return move;
+	}
+	
+	public void setCurrentMove(final Move move) {
+		this.move = move;
+	}
+	
+	private Move getMoveById(int id) {
+		return new Move(id);
+	}
+	
+	public void sendImage(final byte[] colorFrame) {
+		final int width = 640;
+		final int height = 480;
+		
+		final byte[] colorFrameNoA = new byte[(int)((double)colorFrame.length*0.75)];
+		for(int i = 0; i<colorFrame.length; i++) {
+			if(i%4 != 3) {
+				colorFrameNoA[i - (int)((double)i/(double)4)] = colorFrame[i];
+			}
+		}
+		
+		final int samplesPerPixel = 3;
+		final int[] bandOffsets = {2,1,0};
+		
+		final DataBuffer buffer = new DataBufferByte(colorFrameNoA, colorFrameNoA.length);
+		final WritableRaster raster = Raster.createInterleavedRaster(buffer, width, height, samplesPerPixel*width, samplesPerPixel, bandOffsets, null);
+		final ColorModel colorModel = new ComponentColorModel(ColorSpace.getInstance(ColorSpace.CS_sRGB), new int[]{8,8,8}, false, false, Transparency.OPAQUE, DataBuffer.TYPE_BYTE);
+		
+		try {
+			PipedInputStream pis = new PipedInputStream();
+			PipedOutputStream pos = new PipedOutputStream(pis);
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			
+			ImageIO.write(new BufferedImage(colorModel,raster,false,null), "jpg", baos);
+			
+			
+			
+			baos.writeTo(pos);
+			
+			
+			fis = new FileInputStream(pis);
+			final byte[] buffer = new byte[(int)file.length()];
+			int length;
+			OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(new File("src/imageV2.jpg")),StandardCharsets.UTF_8);
+			while((length = fis.read(buffer,0,(int)file.length())) > 0) {
+				String array = new String(Base64.getEncoder().encode(buffer),StandardCharsets.UTF_8);
+				osw.write(array);
+			}
+			fis.close();
+			
+			
+			
+			osw.close();
+		} catch(final IOException e) {}
+	}
+}

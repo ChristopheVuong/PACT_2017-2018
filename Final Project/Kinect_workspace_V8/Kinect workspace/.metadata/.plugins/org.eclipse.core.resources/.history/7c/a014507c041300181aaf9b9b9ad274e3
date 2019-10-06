@@ -1,0 +1,75 @@
+package viewer;
+
+public final class Projection {
+
+	public static final int PERSPECTIVE = 0;
+	public static final int ORTHOGRAPHIC = 1;
+	
+	private boolean isPerspective;
+	private boolean isOrthographic;
+
+	private final Matrixf4D projection;
+
+	public Projection(final float near, final float far, final float fieldOfView) {
+		this(PERSPECTIVE, near, far, (float)Math.tan(fieldOfView * (float)Math.PI/360f) * near, (float)Math.tan(fieldOfView * (float)Math.PI/360f) * near, -(float)Math.tan(fieldOfView * (float)Math.PI/360f) * near, -(float)Math.tan(fieldOfView * (float)Math.PI/360f) * near);
+	}
+
+	public Projection(final float near, final float far, final float top, final float right, final float bottom, final float left) {
+		this(PERSPECTIVE, near, far, top, left, bottom, right);
+	}
+
+	public Projection(final int type, float near, float far, final float top, final float right, final float bottom, final float left) {
+		if(near < 0f) {
+			near = 0f;
+		}
+		if(far < 0f) {
+			far = 0f;
+		}
+		if(far < near) {
+			final float temp = far;
+			far = near;
+			near = temp;
+		}
+		isPerspective = true;
+		projection = initPerspective(near, far, top, right, bottom, left);
+		/*
+		 * if(type == PERSPECTIVE) { projection = initPerspective(near, far, top, right,
+		 * bottom, left); } if(type == ORTHOGRAPHIC) { projection =
+		 * initOrthographic(near, far, top, right, bottom, left); }
+		 */
+	}
+	
+	public boolean isClipped(final Vertexf4D vertex) {
+		i
+	}
+
+	public Vertexf4D clip(final Vertexf4D vertex) {
+		if(vertex == null) {
+			return new Vertexf4D();
+		}
+		return projection.dotKeep(vertex);
+	}
+	
+	public Vertexf3D normalize(final Vertexf4D vertex) {
+		if(vertex == null) {
+			return new Vertexf3D();
+		}
+		final Vertexf4D vertexTemp = projection.dotKeep(vertex);
+		final Vertexf3D vertex3D = vertexTemp.to3D();
+		vertex3D.scale(-1f/vertexTemp.getW(),-1f/vertexTemp.getW(),1f);
+		return vertex3D;
+	}
+
+	private static Matrixf4D initPerspective(final float near, final float far, final float top, final float right, final float bottom, final float left) {
+		final Matrixf4D projection = new Matrixf4D();
+		final float[][] projectionBuild = projection.getMatrix();
+		projectionBuild[0][0] = 2 * near / (right - left);
+		projectionBuild[0][2] = (right + left) / (right - left);
+		projectionBuild[1][1] = 2 * near / (top - bottom);
+		projectionBuild[1][2] = (top + bottom) / (top - bottom);
+		projectionBuild[2][2] = (far + near) / (near - far);
+		projectionBuild[2][3] = 2 * far * near / (near - far);
+		projectionBuild[3][2] = -1;
+		return projection;
+	}
+}

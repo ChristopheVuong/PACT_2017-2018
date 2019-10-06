@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<libraryInfos>
+<libraryInfo home="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse" version="1.8.0_152">
+<bootpath>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\jre\lib\resources.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\jre\lib\rt.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\jre\lib\sunrsasign.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\jre\lib\jsse.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\jre\lib\jce.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\jre\lib\charsets.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\jre\lib\jfr.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\jre\classes"/>
+</bootpath>
+<extensionDirs>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\jre\lib\ext"/>
+<entry path="C:\Windows\Sun\Java\lib\ext"/>
+</extensionDirs>
+<endorsedDirs>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\jre\lib\endorsed"/>
+</endorsedDirs>
+</libraryInfo>
+<libraryInfo home="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\JRE" version="1.8.0_152">
+<bootpath>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\JRE\lib\resources.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\JRE\lib\rt.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\JRE\lib\sunrsasign.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\JRE\lib\jsse.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\JRE\lib\jce.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\JRE\lib\charsets.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\JRE\lib\jfr.jar"/>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\JRE\classes"/>
+</bootpath>
+<extensionDirs>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\JRE\lib\ext"/>
+<entry path="C:\Windows\Sun\Java\lib\ext"/>
+</extensionDirs>
+<endorsedDirs>
+<entry path="C:\Users\Fixe1To\eclipse\java-oxygen\eclipse\JRE\lib\endorsed"/>
+</endorsedDirs>
+</libraryInfo>
+</libraryInfos>

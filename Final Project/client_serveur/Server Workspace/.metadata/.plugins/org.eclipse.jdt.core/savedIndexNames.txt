@@ -1,0 +1,20 @@
+INDEX VERSION 1.130+C:\Users\Fixe1To\Desktop\From USB\client_serveur\Server Workspace\.metadata\.plugins\org.eclipse.jdt.core
+2461411560.index
+1325022434.index
+68685161.index
+3498689569.index
+778494052.index
+2148556702.index
+2497600724.index
+1224880331.index
+2096827998.index
+1050018568.index
+3168880134.index
+586264233.index
+3607681649.index
+261967372.index
+1371990167.index
+4277589119.index
+3548462268.index
+1662464127.index
+3938702982.index

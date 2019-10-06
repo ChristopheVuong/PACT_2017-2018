@@ -1,0 +1,1 @@
+Contient de quoi gérer les messages d'erreur et un filtre pour les entrées de texte de type entier (poru le nombre de secondes de la durée du serveur)

@@ -1,0 +1,150 @@
+package buttons;
+
+import java.awt.Dimension;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.FileNotFoundException;
+import java.util.ArrayList;
+import java.util.Scanner;
+
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JFileChooser;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.text.PlainDocument;
+
+import miginfocom.swing.MigLayout;
+import readAndWrite.KinectFrame;
+import readAndWrite.KinectFrameInterface;
+import utils.PositiveFloatFilter;
+import utils.PositiveIntegerFilter;
+import utils.UserErrorHandler;
+
+public final class OpenButton extends JButton {
+
+	private static final long serialVersionUID = -8919053683164064051L;
+	
+	private final KinectFrameInterface kinectFrameInterface;
+
+	public OpenButton(final KinectFrameInterface kinectFrameInterface) {
+		super("Ouvrir un fichier");
+		this.kinectFrameInterface = kinectFrameInterface;
+		setMinimumSize(new Dimension(200, 20));
+		setMaximumSize(new Dimension(200, 20));
+		addActionListener(new Listener());
+	}
+
+	/**
+	 * Méthode permettant de décoder les squelettes récupérés en sauvegardant, pour les afficher dans l'interface (on ne garde que 20 points et pas les 5 derniers que l'on suppose vide dans cette application)
+	 *
+	 * @param positionsOpen chaîne de caractères contenant une frame (positions de l'ensemble des points du squelette à un instant t)
+	 * @return arrayFloat tableau contenant les positions des points du squelette de la frame décodée
+	 */
+	private float[] decodeLine(final String positionsOpen) {
+		final String build = positionsOpen.substring(1,positionsOpen.length()-1);
+		final String[] array = build.split(",");
+
+		final int len = array.length;
+		if(len == 60 || len == 75) {
+			final float[] arrayFloat = new float[60];
+			for(int i = 0; i<60; i++) {
+				arrayFloat[i] = Float.parseFloat(array[i]);
+			}
+			return arrayFloat;
+		} else {
+			if(len == 20) {
+				return new float[0];
+			} else {
+				return null;
+			}
+		}
+	}
+
+	/**
+	 * Définie ce qu'il se passe lorsqu'on appuie sur le bouton "Ouvrir un fichier" pour ouvrir un fichier de squelette.
+	 * <p>
+	 * Demande à l'utilisateur d'entrer combien de temps il veut entre chaque frame (en ms) et le facteur de zoom de l'affichage.
+	 * <p>
+	 * Décode le fichier texte et s'il est valide lance alors l'affichage de ce dernier et donne à l'utilisateur la possibilité d'arrêter la lecture ou de la recommencer.
+	 */
+	private final class Listener implements ActionListener {
+		@Override
+		public void actionPerformed(final ActionEvent e) {
+			final JFileChooser openFile = new JFileChooser((String) kinectFrameInterface.getSaveAndOpenPath());
+			final FileNameExtensionFilter filter = new FileNameExtensionFilter("Fichier au format txt", "txt", "text");
+			openFile.setFileFilter(filter);
+			final int retrival = openFile.showOpenDialog(null);
+			if(retrival == JFileChooser.APPROVE_OPTION) {
+				Scanner sc = null;
+				try {
+					sc = new Scanner(openFile.getSelectedFile());
+					if(sc.hasNextLine()) {
+						String str = sc.nextLine();
+
+						if(str.equals("Enregistrement d'un squelette Kinect")) {
+							final JPanel panel = new JPanel(new MigLayout());
+							JLabel label = new JLabel("Entrez le temps que vous voulez entre chaque frame (en ms) :");
+							final JTextField textField = new JTextField("");
+							((PlainDocument)textField.getDocument()).setDocumentFilter(new PositiveIntegerFilter());
+							panel.add(label, "cell 0 0");
+							panel.add(textField, "cell 0 1, grow, gapbottom 30");
+							label = new JLabel("Entrez le facteur de zoom pour l'affichage (qui peut être décimal) :");
+							final JTextField textFieldFactor = new JTextField("");
+							((PlainDocument)textFieldFactor.getDocument()).setDocumentFilter(new PositiveFloatFilter());
+							panel.add(label, "cell 0 2");
+							panel.add(textFieldFactor, "cell 0 3, grow");
+							final int option = JOptionPane.showOptionDialog(null, panel, "Choix du temps entre frames", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, new ImageIcon(), new String[]{"Ok"}, null);
+							final String result = textField.getText();
+							final String zoomFactorString = textFieldFactor.getText();
+							if(PositiveIntegerFilter.testFinal(result) && PositiveFloatFilter.testFinal(zoomFactorString) && option == 0) {
+								final int timeBetweenFrames = Integer.parseInt(result);
+								kinectFrameInterface.setTimeBetweenFrames(timeBetweenFrames);
+								kinectFrameInterface.getKinectRead().setZoomFactor(Float.parseFloat(zoomFactorString));
+								final ArrayList<float[]> positionsOpen = new ArrayList<float[]>();
+								kinectFrameInterface.setPositionsOpen(positionsOpen);
+								boolean validSqueleton =  true;
+
+								while(sc.hasNextLine() && validSqueleton){
+									str = sc.nextLine();
+									final float[] arrayFloat = decodeLine(str);
+
+									if(arrayFloat != null) {
+										if(arrayFloat.length != 0) {
+											positionsOpen.add(arrayFloat);
+										}
+									} else {
+										validSqueleton = false;
+										new UserErrorHandler("Le fichier ne semble pas être au format d'enregistrement d'un squelette, veuillez en choisir un autre");
+									}
+								}
+								if(validSqueleton) {
+									setVisible(false);
+									if(kinectFrameInterface.getMode() == KinectFrame.KINECT) {
+										kinectFrameInterface.getSave().setVisible(false);
+									}
+									kinectFrameInterface.getOpenReplay().setVisible(true);
+									kinectFrameInterface.getOpenValidate().setVisible(true);
+									kinectFrameInterface.getKinectRead().beginShowing(timeBetweenFrames, positionsOpen);
+								}
+							}
+						} else {
+							new UserErrorHandler("Le fichier ne semble pas être au format d'enregistrement d'un squelette, veuillez en choisir un autre");
+						}
+					} else {
+						new UserErrorHandler("Le fichier ne semble pas être au format d'enregistrement d'un squelette, veuillez en choisir un autre");
+					}
+				} catch(final FileNotFoundException e1) {
+					new UserErrorHandler("Le fichier n'a pas pu être trouvé");
+				} finally {
+					if(sc != null) {
+						sc.close();
+					}
+				}
+			}
+		}
+	}
+}

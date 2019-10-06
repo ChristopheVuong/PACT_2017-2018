@@ -1,0 +1,232 @@
+package main;
+
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
+import java.util.ArrayList;
+import java.util.Scanner;
+import java.util.concurrent.TimeUnit;
+
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.filechooser.FileNameExtensionFilter;
+
+public class KinectFrame extends JFrame {
+	ArrayList<float[]> positionsOpen;
+	KinectSave kinect;
+	int timeBetweenFrames;
+	JButton open;
+	JButton openReplay;
+	JButton openValidate;
+	JButton save;
+	JButton saveValidate;
+	
+	public KinectFrame() {
+		super();
+		
+		this.setTitle("Interface graphique pour le squelette de la Kinect");
+		
+		this.setSize(1200,800);
+		
+		this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		
+		JPanel panel = new JPanel();
+		
+		open = new JButton("Ouvrir un fichier");
+		open.addActionListener(new OpenListener());
+		openReplay = new JButton("Rejouer le fichier");
+		openReplay.addActionListener(new OpenReplayListener());
+		openReplay.setVisible(false);
+		openValidate = new JButton("Arrêter de jouer ce fichier");
+		openValidate.addActionListener(new OpenValidateListener());
+		openValidate.setVisible(false);
+		
+		save = new JButton("Sauvegarder un fichier");
+		save.addActionListener(new SaveListener());
+		saveValidate = new JButton("Terminer la sauvegarde");
+		saveValidate.addActionListener(new SaveValidateListener());
+		saveValidate.setVisible(false);
+		
+		panel.add(open);
+		panel.add(save);
+		panel.add(openReplay);
+		panel.add(openValidate);
+		panel.add(saveValidate);
+		this.add(panel);
+		
+		kinect = new KinectSave(panel);
+		//kinect = null;
+		
+		this.setVisible(true);
+	}
+	
+	private class OpenListener implements ActionListener {
+		@Override
+	    public void actionPerformed(ActionEvent e) {
+			JFileChooser openFile = new JFileChooser();
+            FileNameExtensionFilter filter = new FileNameExtensionFilter("Fichier au format txt", "txt", "text");
+            openFile.setFileFilter(filter);
+            int retrival = openFile.showOpenDialog(null);
+            if (retrival == JFileChooser.APPROVE_OPTION) {
+            	Scanner sc;
+				try {
+					sc = new Scanner(openFile.getSelectedFile());
+					if(sc.hasNextLine()) {
+						String str = sc.nextLine();
+						
+						if(str == "Enregistrement d'un squelette Kinect") {
+							ImageIcon iconListener = new ImageIcon();
+							Object result = JOptionPane.showInputDialog(null, "Entrez le temps que vous voulez entre chaque frame :", "Choix du temps entre frames", JOptionPane.QUESTION_MESSAGE, iconListener, null, null);
+							if(result != null) {
+								timeBetweenFrames = Integer.parseInt((String)result);
+								positionsOpen = new ArrayList<float[]>();
+								
+								while(sc.hasNextLine()){
+					            	str = sc.nextLine();
+					            	String[] array;
+					            	
+					            	array = str.split(",");
+					            	int len = array.length;
+					            	if(len == 20) {
+					            		float[] arrayFloat = new float[20];
+						            	for(int j = 0; j<20; j++) {
+						            		arrayFloat[j] = Float.parseFloat(array[j]);
+						            	}
+						            	positionsOpen.add(arrayFloat);
+					            	} else {
+					            		ImageIcon iconListener2 = new ImageIcon();
+					    				JOptionPane.showOptionDialog(null, "Le fichier ne semble pas être au format d'enregistrement d'un squelette, veuillez en choisir un autre", null, -1, JOptionPane.QUESTION_MESSAGE, iconListener2, new String[]{"Ok"}, null);
+					            	}
+					            }
+								open.setVisible(false);
+								save.setVisible(false);
+								openReplay.setVisible(true);
+								openValidate.setVisible(true);
+								kinect.beginShowing(timeBetweenFrames, positionsOpen);
+							}
+						} else {
+							ImageIcon iconListener = new ImageIcon();
+		    				JOptionPane.showOptionDialog(null, "Le fichier ne semble pas être au format d'enregistrement d'un squelette, veuillez en choisir un autre", null, -1, JOptionPane.QUESTION_MESSAGE, iconListener, new String[]{"Ok"}, null);
+						}
+					} else {
+						ImageIcon iconListener = new ImageIcon();
+	    				JOptionPane.showOptionDialog(null, "Le fichier ne semble pas être au format d'enregistrement d'un squelette, veuillez en choisir un autre", null, -1, JOptionPane.QUESTION_MESSAGE, iconListener, new String[]{"Ok"}, null);
+					}
+					sc.close();
+				} catch(FileNotFoundException e1) {
+					ImageIcon iconListener = new ImageIcon();
+    				JOptionPane.showOptionDialog(null, "Le fichier n'a pas pu être trouvé", null, -1, JOptionPane.QUESTION_MESSAGE, iconListener, new String[]{"Ok"}, null);
+				}
+            }
+	    }
+	}
+	
+	private class OpenReplayListener implements ActionListener {
+		@Override
+	    public void actionPerformed(ActionEvent e) {
+			kinect.beginShowing(timeBetweenFrames, positionsOpen);
+	    }
+	}
+	
+	private class OpenValidateListener implements ActionListener {
+		@Override
+	    public void actionPerformed(ActionEvent e) {
+			kinect.unsetActiveShowing();
+			open.setVisible(true);
+			save.setVisible(true);
+			openReplay.setVisible(false);
+			openValidate.setVisible(false);
+	    }
+	}
+	
+	private class SaveListener implements ActionListener {
+		@Override
+	    public void actionPerformed(ActionEvent e) {
+			ImageIcon iconListener = new ImageIcon();
+			Object result = JOptionPane.showInputDialog(null, "Entrez le temps en s que vous voulez que l'enregistrement dûr au maximum :", "Choix du temps maximal d'enregistrement", JOptionPane.QUESTION_MESSAGE, iconListener, null, null);
+			if(result != null) {
+				int timeOut = Integer.parseInt(result);
+				open.setVisible(false);
+				save.setVisible(false);
+				saveValidate.setVisible(true);
+				kinect.beginSaving();
+				try {
+					TimeUnit.SECONDS.sleep(timeOut);
+				} catch(InterruptedException e1) {
+					e1.printStackTrace();
+				} finally {
+					saveValidate.doClick();
+				}
+			}
+	    }
+	}
+	
+	private class SaveValidateListener implements ActionListener {
+		@Override
+	    public void actionPerformed(ActionEvent e) {
+			kinect.unsetSaving();
+			kinect.stop();
+			ArrayList<float[]> positionsSaving = kinect.getpositionsSaving();
+			if(positionsSaving.isEmpty()) {
+				ImageIcon iconListener = new ImageIcon();
+				JOptionPane.showOptionDialog(null, "Aucun mouvement à enregistrer n'a été détecté", null, -1, JOptionPane.QUESTION_MESSAGE, iconListener, new String[]{"Ok"}, null);
+			} else {
+				JFileChooser saveFile = new JFileChooser();
+	            int retrival = saveFile.showSaveDialog(null);
+	            if (retrival == JFileChooser.APPROVE_OPTION) {
+	            	File fileSave = saveFile.getSelectedFile();
+	            	String filePath = fileSave.getPath();
+	            	String filename = fileSave.getName();
+	            	
+	            	if(filename.length()>4) {
+	                	if (!filename.substring(filename.length() - 4).equals(".txt")) {
+	                		filePath = filePath + ".txt";
+	                	}
+	            	} else {
+	                	if(filename.equals(".txt")) {
+	                		filePath = filePath.substring(0, filePath.length() - 4) + "Squelette Kinect.txt";
+	                	} else {
+	                		filePath = filePath + ".txt";
+	                	}
+	                }
+	            	
+	                try {
+	                	File f = new File(filePath);
+	            		if(f.exists()) {
+	            			ImageIcon iconListener = new ImageIcon();
+	        				int result = JOptionPane.showOptionDialog(null, "Un fichier avec ce nom existe déjà. Voulez-vous le remplacer?", null, -1, JOptionPane.QUESTION_MESSAGE, iconListener, new String[]{"Oui", "Non"}, null);
+	        				if(result == 0) {
+	        					FileWriter fw = new FileWriter(filePath);
+	        					int len = positionsSaving.size();
+	        					fw.write("Enregistrement d'un squelette Kinect");
+	        					for(int j = 0; j<len; j++) {
+	        						fw.write(positionsSaving.get(j).toString());
+	        					}
+	                            fw.close();
+	        				}
+	            		} else {
+	            			FileWriter fw = new FileWriter(filePath);
+	            			int len = positionsSaving.size();
+	    					fw.write("Enregistrement d'un squelette Kinect");
+	    					for(int j = 0; j<len; j++) {
+	    						fw.write(positionsSaving.get(j).toString());
+	    					}
+	                        fw.close();
+	            		}
+	                } catch(Exception e1) {
+	                    e1.printStackTrace();
+	                }
+	            }
+			}
+            open.setVisible(true);
+			save.setVisible(true);
+			saveValidate.setVisible(false);
+	    }
+	}
+}

@@ -1,0 +1,5 @@
+Main.java
+Contient de quoi lancer le serveur
+
+Server.java
+Contient de quoi gérer le serveur (envoyer et recevoir des données par threads) c'est un serveur multicast conçu pour gérer pluseiurs clients et qui leur relais les différents messages (deviendrais monocible dans notre application)

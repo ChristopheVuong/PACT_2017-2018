@@ -1,0 +1,159 @@
+package viewer;
+
+public final class Sphere implements DrawInterface {
+
+	private final float radius;
+	private final int order;
+	private int numberOfVertices;
+	private final Matrixf4D transform;
+
+	public Sphere(final Vertexf3D center, final float radius, final int order) {
+		if(center == null) {
+			this.radius = 0f;
+			this.order = 0;
+			transform = null;
+		} else {
+			this.radius = radius;
+			this.order = order;
+			numberOfVertices = 2;
+			for(int i = 2; i<=order; i++) {
+				numberOfVertices = 2*numberOfVertices - 1;
+			}
+			transform = Transformf.translate(center);
+		}
+	}
+	
+	public Sphere(final Vertexf3D center, final float radius) {
+		this(center,radius,4);
+	}
+	
+	public Sphere(final float radius, final int order) {
+		this(new Vertexf3D(),radius,order);
+	}
+	
+	public Sphere(final float radius) {
+		this(new Vertexf3D(),radius);
+	}
+
+	public void draw(final ViewerInterface viewer) {
+		if(viewer.getGraphics2D() != null) {
+			if(order > 0) {
+				final Vertexf4D[] vertices = buildModelFace(order);
+				final int len = vertices.length;
+				final Matrixf4D rotateVertices = Transformf.rotateX(90f-(float)(Math.acos(1/Math.sqrt(3))*180/Math.PI));
+				rotateVertices.dot(vertices);
+				final Matrixf4D translateVertices = Transformf.translateZ(-(numberOfVertices-1)/2f);
+				translateVertices.dot(vertices);
+				for(int i = 0; i<len; i++) {
+					vertices[i].normalize(radius);
+				}
+				draw(viewer,vertices);
+			}
+		}
+	}
+	
+	private void draw(final ViewerInterface viewer, Vertexf4D[] vertices) {
+		final Matrixf4D rotateVerticesX = Transformf.rotateX(180f);
+		final Matrixf4D rotateVerticesY = Transformf.rotateY(90f);
+		
+		Vertexf4D[] verticesY90 = rotateVerticesY.dotKeep(vertices);
+		Vertexf4D[] verticesY180 = rotateVerticesY.dotKeep(vertices);
+		Vertexf4D[] verticesY270 = rotateVerticesY.dotKeep(vertices);
+		Vertexf4D[] verticesX180 = rotateVerticesX.dotKeep(vertices);
+		Vertexf4D[] verticesX180Y90 = rotateVerticesY.dotKeep(vertices);
+		Vertexf4D[] verticesX180Y180 = rotateVerticesY.dotKeep(vertices);
+		Vertexf4D[] verticesX180Y270 = rotateVerticesY.dotKeep(vertices);
+		
+		vertices = viewer.getModelView().dot(vertices);
+		verticesY90 = viewer.getModelView().dot(verticesY90);
+		verticesY180 = viewer.getModelView().dot(verticesY180);
+		verticesY270 = viewer.getModelView().dot(verticesY270);
+		verticesX180 = viewer.getModelView().dot(verticesX180);
+		verticesX180Y90 = viewer.getModelView().dot(verticesX180Y90);
+		verticesX180Y180 = viewer.getModelView().dot(verticesX180Y180);
+		verticesX180Y270 = viewer.getModelView().dot(verticesX180Y270);
+		
+		if(viewer.getProjection().isClipped(vertices) && viewer.getProjection().isClipped(verticesY90) && viewer.getProjection().isClipped(verticesY180) && viewer.getProjection().isClipped(verticesY270) && viewer.getProjection().isClipped(verticesX180) && viewer.getProjection().isClipped(verticesX180Y90) && viewer.getProjection().isClipped(verticesX180Y180) && viewer.getProjection().isClipped(verticesX180Y270)) {
+		for(int i = 0; i<4; i++) {
+			if(i != 0) {
+				rotateVerticesY.dot(vertices);
+			}
+			drawFace(viewer,vertices);
+		}
+		rotateVerticesX.dot(vertices);
+		for(int i = 0; i<4; i++) {
+			if(i != 0) {
+				rotateVerticesY.dot(vertices);
+			}
+			drawFace(viewer,vertices);
+		}
+	}
+	
+	private void drawFace(final ViewerInterface viewer, final Vertexf4D[] vertices) {
+		int base = 0;
+		final Vertexi2D[] verticesFace = viewer.getRenderingVertex(transform.dotKeep(vertices));
+		final int iterate = numberOfVertices;
+		for(int i = 0; i<iterate-1; i++) {
+			final int temp = numberOfVertices-i-1;
+			for(int j = 0; j<temp; j++) {
+				if(!FaceCulling.isCullable(new Vertexi2D[] {verticesFace[base],verticesFace[base+1],verticesFace[base+temp+1]})) {
+					final int xPoly[] = new int[3];
+					final int yPoly[] = new int[3];
+					xPoly[0] = verticesFace[base].getX();
+					yPoly[0] = verticesFace[base].getY();
+					xPoly[1] = verticesFace[base+1].getX();
+					yPoly[1] = verticesFace[base+1].getY();
+					xPoly[2] = verticesFace[base+temp+1].getX();
+					yPoly[2] = verticesFace[base+temp+1].getY();
+					viewer.getGraphics2D().fillPolygon(xPoly,yPoly,3);
+				}
+				base++;
+			}
+			base++;
+			for(int j = 0; j<temp-1; j++) {
+				if(!FaceCulling.isCullable(new Vertexi2D[] {verticesFace[base-temp],verticesFace[base+1],verticesFace[base]})) {
+					final int xPoly[] = new int[3];
+					final int yPoly[] = new int[3];
+					xPoly[0] = verticesFace[base-temp].getX();
+					yPoly[0] = verticesFace[base-temp].getY();
+					xPoly[1] = verticesFace[base+1].getX();
+					yPoly[1] = verticesFace[base+1].getY();
+					xPoly[2] = verticesFace[base].getX();
+					yPoly[2] = verticesFace[base].getY();
+					viewer.getGraphics2D().fillPolygon(xPoly,yPoly,3);
+				}
+				base++;
+			}
+			base -= temp-1;
+		}
+	}
+	
+	private Vertexf4D[] buildModelFace(final int order) {
+		final Matrixf4D translate = Transformf.translateY((float)Math.sqrt(3));
+		final Vertexf4D[] vertices = new Vertexf4D[((numberOfVertices+1)*numberOfVertices)/2];
+		final int iterate = (numberOfVertices+1)/2;
+		int k = 0;
+		for(int j = 0; j<numberOfVertices; j++) {
+			vertices[k] = new Vertexf4D((float)j,0f);
+			k++;
+		}
+		for(int j = 0; j<numberOfVertices - 1; j++) {
+			vertices[k] = new Vertexf4D((float)j+0.5f,(float)Math.sqrt(3)/2f);
+			k++;
+		}
+		for(int i = 1; i<iterate; i++) {
+			final int temp = 2*(numberOfVertices-2*i);
+			for(int j = 0; j<numberOfVertices-2*i; j++) {
+				vertices[k] = translate.dotKeep(vertices[k-temp-2]);
+				k++;
+			}
+			for(int j = 0; j<numberOfVertices-2*i-1; j++) {
+				vertices[k] = translate.dotKeep(vertices[k-temp]);
+				k++;
+			}
+		}
+		final Matrixf4D center = Transformf.translateX(-(float)(numberOfVertices-1)/2f);
+		center.dot(vertices);
+		return vertices;
+	}
+}

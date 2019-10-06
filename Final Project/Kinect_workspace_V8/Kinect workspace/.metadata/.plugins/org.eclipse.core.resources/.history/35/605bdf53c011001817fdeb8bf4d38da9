@@ -1,0 +1,31 @@
+package utils.listeners;
+
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
+
+import current.KinectInterface;
+import viewer.ViewerListenerElements;
+import utils.Constants;
+import utils.kinect.ShowSkeletonInterface;
+
+public final class MouseWheelListenerImplementation implements MouseWheelListener {
+
+	private final ViewerListenerElements viewer;
+	
+	public MouseWheelListenerImplementation(final ViewerListenerElements viewer) {
+		this.viewer = viewer;
+	}
+
+	@Override
+	public void mouseWheelMoved(MouseWheelEvent e) {
+		if(e.getScrollType() == MouseWheelEvent.WHEEL_UNIT_SCROLL) {
+			final int notches = e.getWheelRotation();
+			final ModelView modelview = viewer.getModelView();
+			if(notches < 0) {
+				modelview.scale(1f/Constants.zoomFactorMultiplier);
+			} else {
+				modelview.scale(Constants.zoomFactorMultiplier);
+			}
+		}
+	}
+}

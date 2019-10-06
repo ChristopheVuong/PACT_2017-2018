@@ -1,0 +1,5 @@
+MainActivity.java
+Permet de vérifier qu'on a bien les autorisations pour utiliser Internet (nécessaire en plus du manifest pour certaines versions d'Android) et lance la création du client
+
+Client.java
+Etends un process asynchrone d'Android (peut pas lancer de socket en main thread), lance le client qui permet de lancer 2 threads (1 qui gère les données reçues, l'autre principalement destiné aux envois)

@@ -1,0 +1,58 @@
+package readAndWrite;
+
+import com.jogamp.opengl.GLAutoDrawable;
+import com.jogamp.opengl.glu.GLU;
+
+import utils.kinect.KinectReadInterface;
+import utils.kinect.ShowSkeletonAbstract;
+import utils.listeners.EventListenerAbstract;
+import viewer.ViewerInterface;
+
+/**
+ * Initialise l'affichage du squelette et le maintient à jour à l'aide des nouvelles données de positions.
+ */
+public final class ShowSkeletonRead extends ShowSkeletonAbstract {
+
+	private final KinectReadInterface kinectReadInterface;
+
+	/**
+	 * Lance une toile OpenGL.
+	 * <p>
+	 * Ajoute les listeners pour dessiner sur la toile, et pour pouvoir faire pivoter le squelette.
+	 */
+	public ShowSkeletonRead(final KinectReadInterface kinectReadInterface) {
+		super(kinectReadInterface);
+
+		this.kinectReadInterface = kinectReadInterface;
+
+		getViewer().addGLEventListener(new EventListener(getGLU()));
+
+		kinectReadInterface.getKinectFrameInterface().getPanel().add(getGLCanvas(), "cell 0 4, span 4, align 50% 50%, gaptop 100");
+		kinectReadInterface.getKinectFrameInterface().getPanel().add(getScrollbar(), "cell 0 5, span 4, align 50% 50%");
+
+		getViewer().setVisible(false);
+		getScrollbar().setVisible(false);
+	}
+
+	private final class EventListener extends EventListenerAbstract {
+
+		public EventListener(final ViewerInterface viewer) {
+			super(ShowSkeletonRead.this.getViewer());
+		}
+
+		/**
+		 * Permet d'afficher le contenu de la toile, qui grâce à l'Animator varie dynamiquement avec les variations du tableau positions.
+		 */
+		public void display() {
+			if(kinectReadInterface.getShowing()) {
+				kinectReadInterface.setPositions(kinectReadInterface.getPositionsOpen().get(kinectReadInterface.getCounter()).getPositions());
+				displayConstruct(ShowSkeletonRead.this);
+
+				if(kinectReadInterface.getCounterCurrent() != kinectReadInterface.getCounter()) {
+					kinectReadInterface.setCounterCurrent(kinectReadInterface.getCounter());
+					kinectReadInterface.getTimer().start();
+				}
+			}
+		}
+	}
+}

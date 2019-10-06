@@ -1,0 +1,34 @@
+package viewer;
+
+public final class FaceCulling {
+
+	public static boolean isCullable(Vertexi2D[] vertexArray) {
+		if(vertexArray == null || vertexArray.length < 3) {
+			return false;
+		}
+		return (vertexArray[1].getX() - vertexArray[0].getX())*(vertexArray[2].getY() - vertexArray[0].getY()) - (vertexArray[1].getY() - vertexArray[0].getY())*(vertexArray[2].getX() - vertexArray[0].getX()) <= 0;
+		/*if(viewer.detSign()) {
+			return shoelaceFormula(vertexArray) > 0;
+		} else {
+			System.out.println("ok");
+			return shoelaceFormula(vertexArray) < 0;
+		}*/
+	}
+	
+	public static int shoelaceFormula(Vertexi2D[] vertexArray) {
+		if(vertexArray == null) {
+			return 0;
+		}
+		final int len = vertexArray.length;
+		if(len < 3) {
+			return 0;
+		}
+		int doubleArea = 0;
+		doubleArea += vertexArray[0].getX()*(vertexArray[1].getY()-vertexArray[len-1].getY());
+		for(int i = 1; i<len-1; i++) {
+			doubleArea += vertexArray[i].getX()*(vertexArray[i+1].getY()-vertexArray[i-1].getY());
+		}
+		doubleArea += vertexArray[len-1].getX()*(vertexArray[0].getY()-vertexArray[len-2].getY());
+		return doubleArea;
+	}
+}

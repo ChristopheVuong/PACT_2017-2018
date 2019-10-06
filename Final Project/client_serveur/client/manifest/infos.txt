@@ -1,0 +1,1 @@
+Contient le manifest de l'app, (le point important étant la permission pour Internet ici)

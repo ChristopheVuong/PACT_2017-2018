@@ -1,0 +1,1 @@
+Contient de quoi gérer les messages d'erreur pour les utilisateurs

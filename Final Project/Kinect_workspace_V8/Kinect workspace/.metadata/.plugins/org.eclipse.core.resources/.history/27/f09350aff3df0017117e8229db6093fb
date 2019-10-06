@@ -1,0 +1,395 @@
+package main;
+
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionListener;
+import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
+
+import javax.swing.ImageIcon;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+
+import com.jogamp.opengl.GL;
+import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GLAutoDrawable;
+import com.jogamp.opengl.GLCapabilities;
+import com.jogamp.opengl.GLEventListener;
+import com.jogamp.opengl.GLProfile;
+import com.jogamp.opengl.awt.GLCanvas;
+import com.jogamp.opengl.glu.GLU;
+import com.jogamp.opengl.util.Animator;
+
+import edu.ufl.digitalworlds.j4k.J4KSDK;
+import edu.ufl.digitalworlds.j4k.Skeleton;
+
+public class KinectSave extends J4KSDK {
+	private int countFramesSaved = 0;
+	private int countFrames = 0;
+	private float[] positions;
+	private JPanel panel;
+	private GLCanvas glcanvas;
+	private boolean saving = false;
+	ArrayList<float[]> positionsSaving;
+	
+	private int timeBetweenFrames;
+	private boolean showing = false;
+	private boolean activeShowing = true;
+	ArrayList<float[]> positionsOpen;
+	
+	public KinectSave(JPanel panel) {
+		super();
+		this.panel = panel;
+		new ShowSkeleton(20);
+	}
+	
+	public ArrayList<float[]> getpositionsOpen() {
+		return positionsOpen;
+	};
+	
+	public ArrayList<float[]> getpositionsSaving() {
+		return positionsSaving;
+	};
+	
+	public void unsetActiveShowing() {
+		activeShowing = false;
+	}
+	
+	public void unsetSaving() {
+		saving = false;
+	}
+	
+	public void unsetVisible() {
+		glcanvas.setVisible(false);
+	}
+	
+	public void beginShowing(int timeBetweenFrames, ArrayList<float[]> positionsOpen) {
+		if(showing) {
+			ImageIcon icon = new ImageIcon();
+			JOptionPane.showOptionDialog(null, "Vous ne pouvez pas relancer la lecture pendant qu'elle est en train de tourner", null, -1, JOptionPane.QUESTION_MESSAGE, icon, new String[]{"Ok"}, null);
+		} else {
+			showing = true;
+			positionsSaving = null;
+			this.positionsOpen = positionsOpen;
+			this.timeBetweenFrames = timeBetweenFrames;
+			glcanvas.setVisible(true);
+		}
+	}
+	
+	public void beginSaving() {
+		saving = true;
+		activeShowing = true;
+		positionsOpen = null;
+		positionsSaving = new ArrayList<float[]>();
+		glcanvas.setVisible(true);
+		this.start(J4KSDK.SKELETON);
+	}
+
+	public void onSkeletonFrameEvent(boolean[] skeletonTracked, float[] positions, float[] orientations, byte[] jointStatus) {
+		for(int i = 0; i < this.getMaxNumberOfSkeletons(); i++) {
+			if(skeletonTracked[i]) {
+				this.positions = Skeleton.getSkeleton(i, skeletonTracked, positions, orientations, jointStatus, this).getJointPositions();
+				countFrames++;
+			}
+		}
+	}
+
+	@Override
+	public void onColorFrameEvent(byte[] colorFrame) {}
+
+	@Override
+	public void onDepthFrameEvent(short[] depthFrame, byte[] bodyIndex, float[] xyz, float[] uv) {}
+	
+	
+	
+	
+	
+	public class ShowSkeleton implements GLEventListener, MouseMotionListener {
+		private GLU glu = new GLU();
+		private GLCanvas glcanvas;
+		private Animator animator = null;
+		
+		float currentXRot = 0.0f;
+		float currentYRot = 0.0f;
+
+		float currentX = 0.0f;
+		float currentY = 0.0f;
+		
+		int n;
+
+		public ShowSkeleton(int n) {
+			this.n = n;
+			
+		    final GLProfile profile = GLProfile.get(GLProfile.GL2);
+		    GLCapabilities capabilities = new GLCapabilities(profile);
+
+		    glcanvas = new GLCanvas(capabilities);
+		    KinectSave.this.glcanvas = glcanvas;
+		    glcanvas.setVisible(false);
+		    glcanvas.addGLEventListener(this);
+		    glcanvas.addMouseMotionListener(this);
+		    glcanvas.setSize(400, 400);
+		    
+	        animator = new Animator(glcanvas);
+		    animator.start();
+
+	        panel.add(glcanvas);
+	    }
+		
+		
+		
+		
+		
+		public void init(GLAutoDrawable drawable) {}
+
+	    public void reshape(GLAutoDrawable drawable, int x, int y, int width, int height) {
+	    	GL2 gl = drawable.getGL().getGL2();
+	    	gl.glEnable(GL.GL_DEPTH_TEST);
+	        if(height <= 0)
+	           height = 1;
+	        final float h = (float) width / (float) height;
+	        gl.glViewport(0, 0, width, height);
+	        gl.glMatrixMode(GL2.GL_PROJECTION);
+	        gl.glLoadIdentity();
+	        glu.gluPerspective(60.0f, h, 1.0f, 31.0f);
+	        gl.glMatrixMode(GL2.GL_MODELVIEW);
+	        gl.glLoadIdentity();
+	    }
+
+	    public void displayChanged(GLAutoDrawable drawable, boolean modeChanged, boolean deviceChanged) {}
+
+	    public void display(GLAutoDrawable drawable) {
+	    	if(saving) {
+	    		if(countFramesSaved < countFrames) {
+	    			positionsSaving.add(positions);
+	    			countFramesSaved = countFrames;
+	    		}
+	    		
+	    		final GL2 gl = drawable.getGL().getGL2();
+		    	gl.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		    	gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
+		    	gl.glTranslatef(0f, 0f, -11f);
+		        gl.glRotatef(currentXRot, 1, 0, 0);
+		        gl.glRotatef(currentYRot, 0, 1, 0);
+		        gl.glTranslatef(0f, 0f, 11f);
+		        currentXRot = 0.0f;
+		        currentYRot = 0.0f;
+		        
+		        int point1;
+		        int point2;
+
+		        point1 = Skeleton.SPINE_BASE;
+		        point2 = Skeleton.SPINE_MID;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.SPINE_MID;
+		        point2 = Skeleton.NECK;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.NECK;
+		        point2 = Skeleton.HEAD;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.NECK;
+		        point2 = Skeleton.SHOULDER_LEFT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.NECK;
+		        point2 = Skeleton.SHOULDER_RIGHT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.SHOULDER_LEFT;
+		        point2 = Skeleton.ELBOW_LEFT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.SHOULDER_RIGHT;
+		        point2 = Skeleton.ELBOW_RIGHT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.ELBOW_LEFT;
+		        point2 = Skeleton.WRIST_LEFT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.ELBOW_RIGHT;
+		        point2 = Skeleton.WRIST_RIGHT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.WRIST_LEFT;
+		        point2 = Skeleton.HAND_LEFT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.WRIST_RIGHT;
+		        point2 = Skeleton.HAND_RIGHT;
+		        drawLine(point1,point2,gl);
+
+		        point1 = Skeleton.SPINE_BASE;
+		        point2 = Skeleton.HIP_LEFT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.SPINE_BASE;
+		        point2 = Skeleton.HIP_RIGHT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.HIP_LEFT;
+		        point2 = Skeleton.KNEE_LEFT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.HIP_RIGHT;
+		        point2 = Skeleton.KNEE_RIGHT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.KNEE_LEFT;
+		        point2 = Skeleton.ANKLE_LEFT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.KNEE_RIGHT;
+		        point2 = Skeleton.ANKLE_RIGHT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.ANKLE_LEFT;
+		        point2 = Skeleton.FOOT_LEFT;
+		        drawLine(point1,point2,gl);
+		        
+		        point1 = Skeleton.ANKLE_RIGHT;
+		        point2 = Skeleton.FOOT_RIGHT;
+		        drawLine(point1,point2,gl);
+
+		        drawable.swapBuffers();
+	    	}
+	    	
+	    	if(showing) {
+	    		int len = positionsOpen.size();
+	    		for(int j = 0; j<len && activeShowing; j++) {
+	    			positions = positionsOpen.get(j);
+	    			final GL2 gl = drawable.getGL().getGL2();
+			    	gl.glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+			    	gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
+			    	gl.glTranslatef(0f, 0f, -11f);
+			        gl.glRotatef(currentXRot, 1, 0, 0);
+			        gl.glRotatef(currentYRot, 0, 1, 0);
+			        gl.glTranslatef(0f, 0f, 11f);
+			        currentXRot = 0.0f;
+			        currentYRot = 0.0f;
+			        
+			        int point1;
+			        int point2;
+
+			        point1 = Skeleton.SPINE_BASE;
+			        point2 = Skeleton.SPINE_MID;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.SPINE_MID;
+			        point2 = Skeleton.NECK;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.NECK;
+			        point2 = Skeleton.HEAD;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.NECK;
+			        point2 = Skeleton.SHOULDER_LEFT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.NECK;
+			        point2 = Skeleton.SHOULDER_RIGHT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.SHOULDER_LEFT;
+			        point2 = Skeleton.ELBOW_LEFT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.SHOULDER_RIGHT;
+			        point2 = Skeleton.ELBOW_RIGHT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.ELBOW_LEFT;
+			        point2 = Skeleton.WRIST_LEFT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.ELBOW_RIGHT;
+			        point2 = Skeleton.WRIST_RIGHT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.WRIST_LEFT;
+			        point2 = Skeleton.HAND_LEFT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.WRIST_RIGHT;
+			        point2 = Skeleton.HAND_RIGHT;
+			        drawLine(point1,point2,gl,positions);
+
+			        point1 = Skeleton.SPINE_BASE;
+			        point2 = Skeleton.HIP_LEFT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.SPINE_BASE;
+			        point2 = Skeleton.HIP_RIGHT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.HIP_LEFT;
+			        point2 = Skeleton.KNEE_LEFT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.HIP_RIGHT;
+			        point2 = Skeleton.KNEE_RIGHT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.KNEE_LEFT;
+			        point2 = Skeleton.ANKLE_LEFT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.KNEE_RIGHT;
+			        point2 = Skeleton.ANKLE_RIGHT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.ANKLE_LEFT;
+			        point2 = Skeleton.FOOT_LEFT;
+			        drawLine(point1,point2,gl,positions);
+			        
+			        point1 = Skeleton.ANKLE_RIGHT;
+			        point2 = Skeleton.FOOT_RIGHT;
+			        drawLine(point1,point2,gl,positions);
+
+			        drawable.swapBuffers();
+	    			
+	    			try {
+	    				TimeUnit.MILLISECONDS.sleep(timeBetweenFrames);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+	    		}
+	    		glcanvas.setVisible(false);
+	    		showing = false;
+	    	}
+	    }
+	    
+	    private void drawLine(int point1, int point2, GL2 gl) {
+	    	gl.glBegin(GL2.GL_LINES);
+	        gl.glVertex3f(3*positions[3*point1],3*positions[3*point1+1],3*positions[3*point1+2]-11f);
+	        gl.glVertex3f(3*positions[3*point2],3*positions[3*point2+1],3*positions[3*point2+2]-11f);
+	        gl.glEnd();
+	    }
+	    
+	    private void drawLine(int point1, int point2, GL2 gl, float[] positions) {
+	    	gl.glBegin(GL2.GL_LINES);
+	        gl.glVertex3f(3*positions[3*point1],3*positions[3*point1+1],3*positions[3*point1+2]-11f);
+	        gl.glVertex3f(3*positions[3*point2],3*positions[3*point2+1],3*positions[3*point2+2]-11f);
+	        gl.glEnd();
+	    }
+
+		public void dispose(GLAutoDrawable drawable) {}
+
+		@Override
+		public void mouseDragged(MouseEvent e) {
+			float tempX = (float) e.getX();
+			float tempY = (float) e.getY();
+			currentYRot = tempX - currentX;
+			currentXRot = tempY - currentY;
+			currentX = tempX;
+			currentY = tempY;
+		}
+
+		@Override
+		public void mouseMoved(MouseEvent e) {}
+	}
+
+}
